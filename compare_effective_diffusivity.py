@@ -37,6 +37,7 @@ T_TO_SIZE = {
 
 def load_grid(path: pathlib.Path) -> np.ndarray:
     data = np.loadtxt(path)
+    data = data.reshape((256,256))
     if data.ndim != 2:
         raise ValueError(f"Expected 2D grid in {path}, got shape {data.shape}")
     return data
@@ -257,6 +258,7 @@ def main() -> None:
 
     for dist_path in dist_paths:
         dist = load_grid(dist_path)
+        
         if dist.shape[0] != dist.shape[1]:
             raise ValueError(f"Distance map {dist_path} is not square: {dist.shape}")
         rows = dist.shape[0]

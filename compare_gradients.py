@@ -18,6 +18,7 @@ from scipy import ndimage
 
 def load_grid(path: pathlib.Path) -> np.ndarray:
     data = np.loadtxt(path)
+    data = data.reshape((256,256))
     if data.ndim != 2:
         raise ValueError(f"Expected 2D grid in {path}, got shape {data.shape}")
     return data
@@ -44,7 +45,7 @@ def compute_scipy_gradients(dist: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     grad_y = ndimage.sobel(dist, axis=0, mode="nearest")
     grad_x /= 8.0
     grad_y /= 8.0
-    return grad_x, grad_y
+    return -grad_x, -grad_y
 
 
 def rms_error(a: np.ndarray, b: np.ndarray) -> float:
