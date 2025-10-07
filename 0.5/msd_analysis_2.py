@@ -36,8 +36,6 @@ def k_Gamma_function(l, t, bins=50, show_plot=False):
     mean_l = np.mean(l)
     std_l = np.std(l)
     k = (mean_l / std_l) ** 2
-
-    # 計算 Gamma distribution fit (PDF)
     coef = (k ** k) / gamma(k)
     l_term = l ** (k - 1)
     mean_term = mean_l ** k
@@ -45,18 +43,7 @@ def k_Gamma_function(l, t, bins=50, show_plot=False):
     fun = coef * l_term / mean_term * exp_term
     return mean_l, k, fun
 
-def msd_mean(t, time, msd_total, valid_batch):
-    msd_total /= valid_batch
-    
-    ax1.scatter(time[::100], msd_total[::100], s=3, label=f'$t_{{form}}={t}$')
-    ax1.legend()
-    
-    popt, _  = curve_fit(fit_func_FFPE, time, msd_total)
-    fit_K, fit_a = popt
-    fit_msd = fit_func_FFPE(time, fit_K, fit_a)
-    r2 = calculate_r_squared(msd_total, fit_msd)
-    print(f't={t}, alpha={fit_a:.4f}, Ka={fit_K:.4e}, R2={r2:.4f}')
-#%%
+# ===== 參數 =====
 t_to_size = {
     1000:   247.1080942,
     2000:   216.5761537,
@@ -77,87 +64,114 @@ t_to_size = {
     700000: 50.42732327
 }
 L = 256
-t_values = [1000]#5000, 10000, 30000, 50000, 70000, 100000, 200000, 400000, 700000
+t_values = [1000]
 
-particle_size = 40              
+particle_size = 200
 L_sim = 256
 D0_sim = 1.0
-D0_ref = {40:0.088, 100:0.037, 200:0.02}   #um^2/s
+D0_ref = {40:0.088, 100:0.037, 200:0.02}   # um^2/s
 Dp0_ref = {40:0.044, 100:0.019, 200:0.008}
 beta_ref = {40:0.83, 100:0.77,  200:0.85}
-dt = 0
 
-
-alpha_means = []
-alpha_stds = []
-Ka_means = []
-Ka_stds = []
-r2_means = []
-success_counts = []
-t_valid = []
+# ===== 主流程 =====
 fig1, ax1 = plt.subplots()
 current_dir = os.getcwd()
-os.chdir(f'{particle_size}nm_output')
-for tf in t_values:
-    l = t_to_size[tf] / L_sim    #um
-    
-    D_scale = D0_ref[particle_size]
-    t_scale = l**2/D0_ref[particle_size]
-    print(f'tf={tf} D_scale={D_scale}  t_unit={t_scale}')
-#%%
-    alpha_batch = []
-    Ka_batch = []
-    r2_batch = []
-    msd_total = None
-    valid_batch = 0
-    for b in range(10):
-        filename = f'dist_chord_msd_dist_map_phi=0.5 t={tf}_batch_{b}.txt'  
-        t, msd = np.loadtxt(filename).T
-        
-        t *= t_scale
-        msd *= l**2
-        #D = msd  / (4 * t )
-        #plt.plot(t, D, label=fr'$t_{{\mathrm{{form}}}}={tf}$', marker="o",markersize=0.1)
-        #e = int(6/t[1])
-        #t = t[:e]
-        #msd = msd[:e]
-        if msd_total is None:
-            msd_total = np.zeros_like(msd)
-        popt, _ = curve_fit(fit_func_FFPE, t, msd)
-        Ka, alpha = popt
-        msd_fit = fit_func_FFPE(t, Ka, alpha)
-        r2 = calculate_r_squared(msd, msd_fit)
 
-        alpha_batch.append(alpha)
-        Ka_batch.append(Ka)
-        r2_batch.append(r2)
-        msd_total += msd
-        valid_batch += 1
+def process_dir(dir_name, label_suffix=""):
+    os.chdir(dir_name)
+    for tf in t_values:
+        l = t_to_size[tf] / L_sim    # um
+        D_scale = D0_ref[particle_size]
+        t_scale = l**2 / D0_ref[particle_size]
+        print(f'tf={tf} D_scale={D_scale}  t_unit={t_scale}')
 
-    if valid_batch == 10:
-        msd_mean(tf, t, msd_total, valid_batch)
-           
-        alpha_mean = np.mean(alpha_batch)
-        alpha_std = np.std(alpha_batch)
-        Ka_mean = np.mean(Ka_batch)
-        Ka_std = np.std(Ka_batch)
-        r2_mean = np.mean(r2_batch)
+        alpha_batch, Ka_batch, r2_batch = [], [], []
+        t_ref = None
+        msd_sum = None
+        valid_batch = 0
 
-        alpha_means.append(alpha_mean)
-        alpha_stds.append(alpha_std)
-        Ka_means.append(Ka_mean)
-        Ka_stds.append(Ka_std)
-        r2_means.append(r2_mean)
-        success_counts.append(valid_batch)
-        t_valid.append(tf)
-    
- 
+        for b in range(10):
+            filename = f'dist_chord_msd_dist_map_phi=0.5 t={tf}_batch_{b}.txt'
+            t, msd = np.loadtxt(filename).T
 
-'''
-output_filename = f'alpha_Ka_vs_tform_dist_chord_{particle_size}nm.txt'
-with open(output_filename, 'w') as f:
-     f.write('# t_form\talpha_mean\talpha_std\tKa_mean\tKa_std\tR2_mean\tsuccess_count\n')
-     for t, a_mean, a_std, ka_mean, ka_std, r2, count in zip(t_valid, alpha_means, alpha_stds, Ka_means, Ka_stds, r2_means, success_counts):
-         f.write(f'{t}\t{a_mean:.6f}\t{a_std:.6f}\t{ka_mean:.6e}\t{ka_std:.6e}\t{r2:.6f}\t{count}/10\n')
+            # 單位轉換
+            t = t * t_scale
+            msd = msd * (l**2)
 
-'''
+            # 避免 t=0（導數與 D 比值都會不穩）
+            mask = t > 0
+            if not np.any(mask):
+                continue
+            t = t[mask]
+            msd = msd[mask]
+
+            # 建立/對齊共同時間軸
+            if t_ref is None:
+                t_ref = t.copy()
+                msd_sum = np.zeros_like(t_ref)
+            else:
+                # 若這批 t 跟 t_ref 不同，插值到 t_ref
+                if (t.shape != t_ref.shape) or np.max(np.abs(t - t_ref)) > 1e-12:
+                    msd = np.interp(t_ref, t, msd)
+                t = t_ref
+
+            # 擬合（可選，保留你原本的輸出）
+            try:
+                popt, _ = curve_fit(fit_func_FFPE, t, msd,
+                                    p0=(msd[1]/(4*t[1]), 1.0),
+                                    bounds=([0.0, 0.0], [np.inf, 2.0]))
+                Ka, alpha = popt
+                msd_fit = fit_func_FFPE(t, Ka, alpha)
+                r2 = calculate_r_squared(msd, msd_fit)
+                alpha_batch.append(alpha); Ka_batch.append(Ka); r2_batch.append(r2)
+            except Exception as e:
+                print(f"Batch {b} fit failed: {e}")
+
+            msd_sum += msd
+            valid_batch += 1
+
+        if valid_batch == 0:
+            print(f"No valid batches for tf={tf} in {dir_name}")
+            continue
+
+        # 平均 MSD
+        msd_mean = msd_sum / valid_batch
+
+        # ===== 以導數法計算 D(t) =====
+        # 中心差分（np.gradient 對內部點為中心差分，邊界為單邊差分）
+        dmsd_dt = np.gradient(msd_mean, t_ref)
+        D_t = 0.25 * dmsd_dt  # 2D: 1/(2d) = 1/4
+
+        # 繪圖
+        plt.plot(t_ref, D_t, label=fr'$t_{{\mathrm{{form}}}}={tf}$' + label_suffix, marker="o", markersize=0.1)
+
+        # 若你仍想要在 MSD 上做 FFPE 擬合與評估 R^2，可保留
+        try:
+            popt, pcov = curve_fit(fit_func_FFPE, t_ref, msd_mean)
+            K, a = popt
+            msd_fit = fit_func_FFPE(t_ref, K, a)
+            r2 = calculate_r_squared(msd_mean, msd_fit)
+            print(f'tf={tf} K={K:.4e} a={a:.4f} R2={r2:.4f} (dir={dir_name})')
+        except Exception as e:
+            print(f"Final fit failed for tf={tf} in {dir_name}: {e}")
+
+    os.chdir(current_dir)
+
+# 跑兩個資料夾
+process_dir(f'{particle_size}nm_output_ori', label_suffix="")
+process_dir(f'{particle_size}nm_output', label_suffix="$_De")
+
+# 加入實驗參考（保持你原本邏輯）
+exp_t, exp_msd = ref_msd(Dp0_ref[particle_size], beta_ref[particle_size], 0.001)
+exp_data = exp_msd / (4*exp_t)  # 這是用比值法生成的參考 D(t)，可視為視覺參考
+plt.scatter(exp_t, exp_data, s=10, label=f'Exp ({particle_size} nm).')
+
+plt.xlabel(r'$t\ (s)$')
+plt.ylabel(r'$D(t)\ (\mu\mathrm{m}^2/s)$')
+#plt.xscale('log')
+#plt.yscale('log')
+plt.xlim(1, 5)
+plt.legend(loc="upper right", ncol=1)
+plt.tight_layout()
+plt.savefig(f'msd_dist_map_phi=0.5_{particle_size}nm_D_t_derivative.png', dpi=300)
+plt.close()

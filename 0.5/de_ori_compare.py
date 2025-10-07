@@ -138,7 +138,55 @@ for tf in t_values:
     msd_fit = fit_func_FFPE(t, K, a)
     r2 = calculate_r_squared(msd_total, msd_fit)
     print(f'K={K} and a={a} and r2={r2}')
+os.chdir(current_dir)
+os.chdir(f'{particle_size}nm_output')
+for tf in t_values:
+    l = t_to_size[tf] / L_sim    #um
+    
+    D_scale = D0_ref[particle_size]
+    t_scale = l**2/D0_ref[particle_size]
+    print(f'tf={tf} D_scale={D_scale}  t_unit={t_scale}')
 
+    alpha_batch = []
+    Ka_batch = []
+    r2_batch = []
+    msd_total = None
+    valid_batch = 0
+    for b in range(10):
+        filename = f'dist_chord_msd_dist_map_phi=0.5 t={tf}_batch_{b}.txt'  
+        t, msd = np.loadtxt(filename).T
+        
+        t *= t_scale
+        msd *= l**2
+        #D = msd  / (4 * t )
+        #plt.plot(t, D, label=fr'$t_{{\mathrm{{form}}}}={tf}$', marker="o",markersize=0.1)
+        
+        #e = int(6/t[1])
+        #t = t[:e]
+        #msd = msd[:e]
+        if msd_total is None:
+            msd_total = np.zeros_like(msd)
+        popt, _ = curve_fit(fit_func_FFPE, t, msd)
+        Ka, alpha = popt
+        msd_fit = fit_func_FFPE(t, Ka, alpha)
+        r2 = calculate_r_squared(msd, msd_fit)
+
+        alpha_batch.append(alpha)
+        Ka_batch.append(Ka)
+        r2_batch.append(r2)
+        msd_total += msd
+        valid_batch += 1
+    msd_total /= valid_batch
+    D = msd_total  / (4 * t )
+    #D *= D_scale
+
+    #plt.plot(t[s:e], D[s:e], label=fr'$t_{{\mathrm{{form}}}}={t}\ D_0^{{sim}}={D0_sim}$', marker="o",markersize=0.1)
+    plt.plot(t, D, label=fr'$t_{{\mathrm{{form}}}}={tf}$_De', marker="o",markersize=0.1)
+    popt, pcov = curve_fit(fit_func_FFPE, t, msd_total)
+    K ,a = popt
+    msd_fit = fit_func_FFPE(t, K, a)
+    r2 = calculate_r_squared(msd_total, msd_fit)
+    print(f'K={K} and a={a} and r2={r2}')
 '''
 # 加入實驗資料
 try:
@@ -152,7 +200,7 @@ exp_data = exp_msd / (4*exp_t)
 plt.scatter(exp_t, exp_data, color='r', s=10, label=f'Exp ({particle_size} nm).')
     
 
-
+os.chdir(current_dir)
 plt.xlabel(r'$t\ (s)$')
 plt.ylabel(r'$D(t)\ (\mu\mathrm{m}^2/s)$')
 #plt.xscale('log')

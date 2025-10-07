@@ -31,7 +31,7 @@ const double sigma = 1;
 const double Dx1 = 1;
 const double Dy1 = 1;
 const int rows = L, cols = L;
-const int particle_size = 200; // nm
+const int particle_size = 40; // nm
 const double R_ref = particle_size * 0.5; //nm
 
 map<int, double> t_to_size = {
@@ -235,7 +235,7 @@ int main() {
         array<array<double, cols>, rows> space = {};
         morphology_read_d(filename, space); 
         string tag = fs::path(filename).stem().string();
-        string out_folder = folder + "/"+ to_string(particle_size)+"nm_output";
+        string out_folder = folder + "/"+ to_string(particle_size)+"nm_output_ori";
         if (!fs::exists(out_folder)) {
             fs::create_directory(out_folder);
             }
